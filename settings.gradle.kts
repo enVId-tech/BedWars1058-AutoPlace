@@ -1,1 +1,1 @@
-rootProject.name = "BedWars1058-AutoPlace"
+rootProject.name = "BedwarsAutoSetup"

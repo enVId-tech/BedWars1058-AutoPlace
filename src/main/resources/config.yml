@@ -1,0 +1,74 @@
+# ---------------------------------------------------------------------------
+# BedwarsAutoSetup configuration
+# ---------------------------------------------------------------------------
+
+# Bedwars1058 setup commands this plugin runs on your behalf (as the player).
+# Placeholders: {root} {team} {color} {type} {size}
+# Set a template to "" to disable that step. Verify these against your BW1058 version.
+bw-commands:
+  root: "bw"
+  create-team: "{root} createTeam {team} {color}"
+  remove-team: "{root} removeTeam {team}"
+  set-max-in-team: "{root} setMaxInTeam {size}"
+  set-spawn: "{root} setSpawn {team}"
+  set-bed: "{root} setBed {team}"
+  set-shop: "{root} setShop {team}"
+  set-upgrade: "{root} setUpgrade {team}"
+  add-generator: "{root} addGenerator {type} {team}"
+  add-map-generator: "{root} addGenerator {type}"
+  remove-generator: "{root} removeGenerator"
+  set-kill-drops: "{root} setKillDrops {team}"
+  set-waiting-spawn: "{root} setWaitingSpawn"
+  set-spectator-spawn: "{root} setSpectatorSpawn"
+  waiting-pos1: "{root} waitingPos1"
+  waiting-pos2: "{root} waitingPos2"
+  save: "{root} save"
+
+# Root labels the command sniffer recognises when a player types setup commands by hand.
+command-roots: [bw, bedwars, bw1058]
+
+timing:
+  step-delay-ticks: 2          # delay between teleports / commands in a placement queue
+  countdown-seconds: 3         # /nextgen movement-cancel countdown
+
+# Symmetry centre of the map. Used for rotations, lobby scan and generator scan.
+center:
+  x: 0.0
+  z: 0.0
+
+# Snap computed positions to the nearest 0.5 block.
+snap-to-half-block: true
+
+beds:
+  template-search-radius: 30   # nearest bed to the player when capturing the template base
+  scan-radius: 200             # how far from the centre to look for beds
+  armor-stand-radius: 7        # a bed with an armor stand this close is treated as already assigned
+  assigned-radius: 10          # a bed this close to an assigned bed is treated as already assigned
+
+lobby-scan:
+  radius: 48                   # square radius around the centre that is scanned
+  min-blocks: 24               # ignore structures smaller than this
+  max-center-offset: 32        # structure bounding-box centre must be this close to the map centre
+  padding: 1                   # blocks added around the detected structure
+
+wool:
+  radius: 24
+  min-score: 6                 # minimum (own count - mean count at other bases) to accept a colour
+  suffixes: ["_WOOL"]          # block families that count as team-coloured structure
+
+mirror:
+  mode: auto                   # auto | off | force
+  sample-radius: 14
+  margin: 0.03                 # mirrored score must beat rotated score by this much
+
+generator-scan:
+  radius: 100
+
+rotation:
+  default-degrees: 90
+
+validation:
+  required-map-elements: [WAITING_SPAWN, SPECTATOR_SPAWN, LOBBY_POS1, LOBBY_POS2, GEN_DIAMOND, GEN_EMERALD]
+
+messages:
+  incomplete-auto: "You are attempting to run automatic placement without all game elements. You are missing [{elements}]. Run /bwauto confirm/deny to continue anyway."

@@ -1,6 +1,28 @@
-name: BedWars1058-AutoPlace
-version: '${version}'
+name: BedwarsAutoSetup
+version: ${version}
+main: dev.etran.BwAutoPlugin
+api-version: '1.17'
+description: Manual, semi-automatic and fully automatic Bedwars1058 arena setup.
+authors: [thelittlebotengineer]
+depend: [BedWars1058]
 
-main: dev.etran.bedWars1058AutoPlace.BedWars1058AutoPlace
-api-version: '1.20'
-load: POSTWORLD
+commands:
+  bwsetup:
+    description: Open the Bedwars auto-setup menu.
+    usage: /bwsetup [open|mode <manual|semi|auto>|gamemode <1v1v1v1|...>|status|reset]
+    aliases: [bwa, bwautosetup]
+    permission: bwauto.use
+  bwauto:
+    description: Run automatic placement, or confirm/deny it when elements are missing.
+    usage: /bwauto [run|next|confirm|deny]
+    permission: bwauto.use
+  nextgen:
+    description: Detect and place the next diamond/emerald generator, or rotate around the map centre.
+    usage: /nextgen [diamond|emerald] [degrees]
+    aliases: [bwrotate]
+    permission: bwauto.use
+
+permissions:
+  bwauto.use:
+    description: Use the Bedwars auto-setup tools.
+    default: op
