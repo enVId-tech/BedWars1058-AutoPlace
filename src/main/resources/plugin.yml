@@ -1,0 +1,6 @@
+name: BedWars1058-AutoPlace
+version: '${version}'
+
+main: dev.etran.bedWars1058AutoPlace.BedWars1058AutoPlace
+api-version: '1.20'
+load: POSTWORLD
