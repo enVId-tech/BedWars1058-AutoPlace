@@ -105,6 +105,7 @@ object ElementPlacer {
         q.teleport(original)
         q.done {
             s.busy = false
+            if (s.toolsActive) plugin.ghosts().refresh(p, s)
             after?.run()
         }
         q.start()

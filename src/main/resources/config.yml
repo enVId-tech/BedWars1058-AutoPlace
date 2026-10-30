@@ -1,3 +1,6 @@
+# Start the hotbar setup (tools + menu) as soon as a player runs /bw setupArena <world>.
+auto-start-on-setup-arena: true
+
 # ---------------------------------------------------------------------------
 # BedwarsAutoSetup configuration
 # ---------------------------------------------------------------------------

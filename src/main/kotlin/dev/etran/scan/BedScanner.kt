@@ -5,6 +5,7 @@ import dev.etran.compat.BedCompat
 import dev.etran.compat.Compat
 import dev.etran.model.BedInfo
 import dev.etran.model.SetupSession
+import dev.etran.tools.Ghosts
 import org.bukkit.Location
 import org.bukkit.World
 import org.bukkit.entity.ArmorStand
@@ -59,7 +60,7 @@ object BedScanner {
     @JvmStatic
     fun armorStandNear(w: World, at: Location, radius: Double): Boolean {
         for (e in w.getNearbyEntities(at, radius, radius, radius)) {
-            if (e is ArmorStand && e.location.distance(at) <= radius) return true
+            if (e is ArmorStand && !Ghosts.isTagged(e) && e.location.distance(at) <= radius) return true
         }
         return false
     }

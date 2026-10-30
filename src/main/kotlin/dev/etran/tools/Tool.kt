@@ -1,7 +1,10 @@
 package dev.etran.tools
 
+import dev.etran.EasySetupPlugin
+import dev.etran.gui.FacingControl
 import dev.etran.gui.Items
 import dev.etran.model.Element
+import dev.etran.model.SetupMode
 import dev.etran.model.SetupSession
 import org.bukkit.ChatColor
 import org.bukkit.inventory.ItemStack
@@ -16,6 +19,7 @@ enum class Tool(
     private val icon: String,
     private val toolName: String
 ) {
+    // page 1: base
     TEAM("team", null, "WHITE_WOOL|WOOL:0", "&e&lTeam"),
     SPAWN("spawn", Element.SPAWN, "ENDER_PEARL", "&b&lTeam Spawn"),
     BED("bed", Element.BED, "RED_BED|BED", "&c&lBed"),
@@ -23,18 +27,30 @@ enum class Tool(
     UPGRADE("upgrade", Element.UPGRADE, "ENCHANTING_TABLE|ENCHANTMENT_TABLE", "&d&lTeam Upgrades"),
     IRON("iron", Element.GEN_IRON, "IRON_INGOT", "&f&lIron Generator"),
     GOLD("gold", Element.GEN_GOLD, "GOLD_INGOT", "&6&lGold Generator"),
+
+    // page 2: extras
     DROPS("drops", Element.KILL_DROPS, "DROPPER", "&7&lDrop Area"),
-    MENU("menu", null, "NETHER_STAR", "&6&lMenu"),
+    DETECT("detect", null, "PAINTING", "&6&lDetect Team Colour"),
+    FACING("facing", null, "COMPASS", "&e&lShop Facing"),
+    AUTO("auto", null, "ARROW", "&b&lAutomation"),
+    GAMEMODE("gamemode", null, "NETHER_STAR", "&6&lGamemode"),
+    MENU("menu", null, "BOOK", "&6&lFull Menu"),
+    EXIT("exit", null, "BARRIER", "&c&lExit Setup"),
+
+    // page 3: map
     WAIT_SPAWN("waitspawn", Element.WAITING_SPAWN, "BEACON", "&b&lPlayer (Waiting) Spawn"),
     SPEC_SPAWN("specspawn", Element.SPECTATOR_SPAWN, Items.SPECTRAL_ARROW, "&7&lSpectator Spawn"),
     LOBBY1("lobby1", Element.LOBBY_POS1, Items.WOODEN_AXE, "&e&lLobby Corner 1"),
     LOBBY2("lobby2", Element.LOBBY_POS2, "STONE_AXE", "&e&lLobby Corner 2"),
     DIAMOND("diamond", Element.GEN_DIAMOND, "DIAMOND", "&b&lDiamond Generator"),
     EMERALD("emerald", Element.GEN_EMERALD, "EMERALD", "&a&lEmerald Generator"),
-    PAGE_TEAM("pageteam", null, "RED_BED|BED", "&e&lBack to team tools");
 
-    /** The item for this tool, personalised with the session's selected team. */
-    fun item(s: SetupSession?): ItemStack {
+    // page switchers (hotbar slots 1 and 9)
+    PREV("prev", null, Items.RED_CONCRETE, "&c&l◀ Previous page"),
+    NEXT("next", null, Items.LIME_CONCRETE, "&a&lNext page ▶");
+
+    /** The item for this tool, personalised with the session's selected team and settings. */
+    fun item(s: SetupSession?, plugin: EasySetupPlugin): ItemStack {
         val team = s?.selected
         var spec = icon
         var title = toolName
@@ -47,15 +63,49 @@ enum class Tool(
                 } else {
                     title = "&e&lTeam: &7none selected"
                 }
-                lore.add("&7Right-click: choose the team you place for,")
-                lore.add("&7or create the teams.")
+                lore.add("&7Left-click: next team")
+                lore.add("&7Right-click: team menu (create teams)")
             }
+            PREV, NEXT -> {
+                val page = s?.hotbarPage ?: 0
+                val n = PAGES.size
+                val target = if (this == PREV) (page + n - 1) % n else (page + 1) % n
+                lore.add("&7Page " + (page + 1) + " of " + n + ": &f" + PAGE_NAMES[page])
+                lore.add("&7Click: go to &f" + PAGE_NAMES[target])
+            }
+            DETECT -> {
+                lore.add("&7Right-click while standing at a base:")
+                lore.add("&7selects the team whose wool colour matches.")
+            }
+            FACING -> if (s != null) lore.addAll(FacingControl.lines(plugin, s))
+            AUTO -> {
+                val mode = s?.mode
+                when (mode) {
+                    SetupMode.MANUAL -> {
+                        title = "&7&lAutomation: Manual"
+                        spec = "BARRIER"
+                        lore.add("&7Manual: nothing is copied for you.")
+                    }
+                    SetupMode.SEMI -> {
+                        title = "&b&lApply to next base"
+                        lore.add("&7Right-click: copy this base onto the")
+                        lore.add("&7nearest base without a bed.")
+                    }
+                    else -> {
+                        title = "&d&lRun automatic placement"
+                        spec = Items.ENDER_EYE
+                        lore.add("&7Right-click: copy this base onto every")
+                        lore.add("&7other bed, plus lobby and generators.")
+                    }
+                }
+                lore.add("&7Left-click: mode (&f" + (mode?.label ?: "Semi-Automatic") + "&7)")
+            }
+            GAMEMODE -> lore.add("&7Right-click: choose the gamemode.")
             MENU -> {
                 lore.add("&7Right-click: open the full menu")
-                lore.add("&7(gamemode, lobby, options, validation).")
-                lore.add("&7Left-click: switch between team and map tools.")
+                lore.add("&7(lobby, generators, validation, save).")
             }
-            PAGE_TEAM -> lore.add("&7Right-click: show the team tools again.")
+            EXIT -> lore.add("&7Right-click: give your own hotbar back.")
             else -> {
                 if (this == BED && team != null) spec = team.bedSpec()
                 lore.add("&7Right-click a block: place it &fthere&7")
@@ -63,9 +113,7 @@ enum class Tool(
                 if (this == SHOP || this == UPGRADE) lore.add("&7It looks back toward you, snapped to 45°.")
                 if (this == BED) lore.add("&7Click the bed itself.")
                 lore.add("&7Left-click an element to delete it.")
-                if (element != null && element.perTeam && team != null) {
-                    lore.add("&7Placing for: " + team.chat + team.display)
-                }
+                if (element != null && element.perTeam && team != null) lore.add("&7Placing for: " + team.chat + team.display)
             }
         }
         lore.add("&0$MARKER$id")
@@ -73,11 +121,16 @@ enum class Tool(
     }
 
     companion object {
+        /** Hotbar pages: slot 0 and 8 are the page buttons, slots 1-7 the tools of the page. */
         @JvmField
-        val TEAM_PAGE: Array<Tool?> = arrayOf(TEAM, SPAWN, BED, SHOP, UPGRADE, IRON, GOLD, DROPS, MENU)
+        val PAGES: List<Array<Tool?>> = listOf(
+            arrayOf(PREV, TEAM, SPAWN, BED, SHOP, UPGRADE, IRON, GOLD, NEXT),
+            arrayOf(PREV, DROPS, DETECT, FACING, AUTO, GAMEMODE, MENU, EXIT, NEXT),
+            arrayOf(PREV, WAIT_SPAWN, SPEC_SPAWN, LOBBY1, LOBBY2, DIAMOND, EMERALD, MENU, NEXT)
+        )
 
         @JvmField
-        val MAP_PAGE: Array<Tool?> = arrayOf(WAIT_SPAWN, SPEC_SPAWN, LOBBY1, LOBBY2, DIAMOND, EMERALD, null, PAGE_TEAM, MENU)
+        val PAGE_NAMES: List<String> = listOf("Base", "Extras", "Map")
 
         private const val MARKER = "bwauto:"
 

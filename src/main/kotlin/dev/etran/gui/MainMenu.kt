@@ -54,7 +54,7 @@ class MainMenu(plugin: EasySetupPlugin, player: Player) : Menu(plugin, player) {
             refresh()
         }
         set(
-            13,
+            14,
             Items.of(
                 "COMPASS", "&6Lobby & Boundary",
                 "&7Player/spectator spawns and the lobby",
@@ -62,38 +62,24 @@ class MainMenu(plugin: EasySetupPlugin, player: Player) : Menu(plugin, player) {
             )
         ) { go(LobbyMenu(plugin, player)) }
         set(
-            14,
+            15,
             Items.of(
                 "DIAMOND_BLOCK", "&6Map Generators",
                 "&7Diamond and emerald generators, plus",
                 "&7rotation around the map centre."
             )
         ) { go(MapGenMenu(plugin, player)) }
-        automationButton(this, 15, plugin, player, session.mode)
 
-        // ---- hotbar controls (bottom row)
+        // ---- bottom row: hotbar controls
         val sel = session.selected
         set(
-            19,
+            13,
             Items.of(
                 sel?.woolSpec() ?: Items.WHITE_WOOL,
                 "&eTeam: " + (if (sel == null) "&7none" else sel.chat.toString() + sel.display),
                 "&7Choose which team the hotbar tools", "&7place for, or create the teams."
             )
         ) { go(TeamMenu(plugin, player)) }
-        set(
-            20,
-            Items.of(
-                if (session.hotbarPage == 1) "DIAMOND" else "RED_BED|BED",
-                "&eHotbar tools: &f" + (if (session.hotbarPage == 1) "Map" else "Team"),
-                "&7Click to switch between team tools",
-                "&7(spawn, bed, shop, generators...) and",
-                "&7map tools (lobby, diamond, emerald)."
-            )
-        ) {
-            Hotbar.setPage(plugin, player, session, if (session.hotbarPage == 1) 0 else 1)
-            refresh()
-        }
         set(21, FacingControl.item(plugin, session)) {
             FacingControl.click(session, it)
             refresh()

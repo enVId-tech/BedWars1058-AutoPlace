@@ -4,12 +4,17 @@ import dev.etran.EasySetupPlugin
 import dev.etran.Msg
 import dev.etran.bw.ElementPlacer
 import dev.etran.compat.BedCompat
+import dev.etran.gui.FacingControl
+import dev.etran.gui.GamemodeMenu
 import dev.etran.gui.MainMenu
 import dev.etran.gui.TeamMenu
 import dev.etran.model.Element
 import dev.etran.model.Frame
+import dev.etran.model.SetupMode
 import dev.etran.model.SetupSession
+import dev.etran.place.AutoRunner
 import dev.etran.place.FacingPolicy
+import dev.etran.place.TeamManager
 import dev.etran.scan.BedScanner
 import org.bukkit.Bukkit
 import org.bukkit.Location
@@ -77,6 +82,12 @@ class ToolListener(private val plugin: EasySetupPlugin) : Listener {
         e.isCancelled = true
         if (!debounce(last, p)) return
         val a = e.action
+        val left = a == Action.LEFT_CLICK_BLOCK || a == Action.LEFT_CLICK_AIR
+        if (t.element == null) {
+            // Page buttons and utility tools work the same wherever you click.
+            Bukkit.getScheduler().runTask(plugin, Runnable { utility(p, s, t, left) })
+            return
+        }
         if (a == Action.RIGHT_CLICK_BLOCK || a == Action.RIGHT_CLICK_AIR) {
             use(p, s, t, if (a == Action.RIGHT_CLICK_BLOCK) Aim.fromBlock(e.clickedBlock, e.blockFace) else Aim.raycast(p, 60.0))
         } else if (a == Action.LEFT_CLICK_BLOCK || a == Action.LEFT_CLICK_AIR) {
@@ -91,22 +102,49 @@ class ToolListener(private val plugin: EasySetupPlugin) : Listener {
         }
     }
 
-    private fun use(p: Player, s: SetupSession, t: Tool, hit: Aim.Hit?) {
+    /** Page buttons and tools without an element: right-click is the main action, left-click the secondary. */
+    private fun utility(p: Player, s: SetupSession, t: Tool, left: Boolean) {
+        if (!p.isOnline || !s.toolsActive) return
         when (t) {
-            Tool.TEAM -> {
-                Bukkit.getScheduler().runTask(plugin, Runnable { TeamMenu(plugin, p).open() })
-                return
+            Tool.PREV -> Hotbar.setPage(plugin, p, s, s.hotbarPage - 1)
+            Tool.NEXT -> Hotbar.setPage(plugin, p, s, s.hotbarPage + 1)
+            Tool.TEAM -> if (left) {
+                val req = s.requiredTeams()
+                if (req.isEmpty()) {
+                    Msg.err(p, "Pick a gamemode first (page 2: nether star).")
+                } else {
+                    val i = req.indexOf(s.selected)
+                    s.selected = req[(i + 1) % req.size]
+                    Hotbar.render(plugin, p, s)
+                    Msg.info(p, "Placing for " + s.selected!!.chat + s.selected!!.display + (if (s.hasTeam(s.selected!!)) "" else " (team not created yet)"))
+                }
+            } else TeamMenu(plugin, p).open()
+            Tool.MENU -> MainMenu(plugin, p).open()
+            Tool.GAMEMODE -> GamemodeMenu(plugin, p).open()
+            Tool.DETECT -> TeamManager.detectWoolAt(plugin, p, s) { Hotbar.render(plugin, p, s) }
+            Tool.FACING -> {
+                if (p.isSneaking) FacingControl.reset(s) else if (left) FacingControl.cycleSnap(s) else FacingControl.cycleMode(s)
+                Hotbar.render(plugin, p, s)
+                Msg.info(p, FacingControl.lines(plugin, s).take(2).joinToString("  ").replace(Regex("&."), ""))
             }
-            Tool.MENU -> {
-                Bukkit.getScheduler().runTask(plugin, Runnable { MainMenu(plugin, p).open() })
-                return
+            Tool.AUTO -> if (left) {
+                s.mode = s.mode.next()
+                Hotbar.render(plugin, p, s)
+                Msg.info(p, "Setup mode: " + s.mode.label)
+            } else if (s.mode == SetupMode.MANUAL) {
+                Msg.err(p, "Automation is off in Manual mode. Left-click this tool to change the mode.")
+            } else {
+                AutoRunner.request(plugin, p, s.mode == SetupMode.SEMI)
             }
-            Tool.PAGE_TEAM -> {
-                Hotbar.setPage(plugin, p, s, 0)
-                return
+            Tool.EXIT -> {
+                Hotbar.deactivate(plugin, p, s)
+                Msg.ok(p, "Setup tools removed; your hotbar is back.")
             }
             else -> {}
         }
+    }
+
+    private fun use(p: Player, s: SetupSession, t: Tool, hit: Aim.Hit?) {
         val el = t.element ?: return
         if (hit == null) {
             Msg.err(p, "Nothing to aim at - point at a block.")
@@ -156,10 +194,6 @@ class ToolListener(private val plugin: EasySetupPlugin) : Listener {
     }
 
     private fun punch(p: Player, s: SetupSession, t: Tool, hit: Aim.Hit?) {
-        if (t == Tool.MENU) {
-            Hotbar.setPage(plugin, p, s, if (s.hotbarPage == 1) 0 else 1)
-            return
-        }
         if (hit == null) return
         val w = p.world
         val found = ArrayList<Remover.Target>()
@@ -211,7 +245,8 @@ class ToolListener(private val plugin: EasySetupPlugin) : Listener {
         if (g != null) {
             ev.isCancelled = true
             if (g.owner != p.uniqueId) return
-            Remover.hit(plugin, p, s, Remover.find(s, g.anchor, g.element), true, g.element)
+            val oneHit = g.element == Element.SHOP || g.element == Element.UPGRADE || g.element.isGenerator()
+            Remover.hit(plugin, p, s, Remover.find(s, g.anchor, g.element), oneHit, g.element)
         } else if (ent is ArmorStand) {
             val gens = Remover.find(s, ent.location, null).filter { it.element.isGenerator() }
             if (gens.isEmpty()) return

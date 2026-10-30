@@ -52,6 +52,31 @@ object Remover {
         return out
     }
 
+    /** Every recorded element, for the delete commands. */
+    @JvmStatic
+    fun all(s: SetupSession): List<Target> {
+        val out = ArrayList<Target>()
+        for ((color, ts) in s.teams) {
+            for ((e, loc) in ts.pos) out.add(Target(e, color, loc, null, false))
+            for (g in ts.gens) out.add(Target(if (g.type == "iron") Element.GEN_IRON else Element.GEN_GOLD, color, g.loc, g, false))
+        }
+        for ((e, locs) in s.mapElements) for (l in locs) out.add(Target(e, null, l, null, e.isGenerator()))
+        return out
+    }
+
+    /**
+     * The recorded copies of [e] to delete: for per-team elements the given [team]'s; for map-wide generators the
+     * one nearest [near], or all of them with [every].
+     */
+    @JvmStatic
+    fun select(s: SetupSession, e: Element, team: TeamColor?, near: Location?, every: Boolean): List<Target> {
+        var list = all(s).filter { it.element == e && (!e.perTeam || it.team == team) }
+        if (!every && e.isGenerator() && !e.perTeam && near != null && list.size > 1) {
+            list = listOfNotNull(list.filter { it.loc.world == near.world }.minByOrNull { it.loc.distanceSquared(near) })
+        }
+        return list
+    }
+
     private fun near(a: Location, center: Location): Boolean {
         if (a.world == null || a.world != center.world) return false
         val dx = a.x - center.x
@@ -101,7 +126,9 @@ object Remover {
         else -> "remove-generator"
     }
 
-    private fun delete(plugin: EasySetupPlugin, p: Player, s: SetupSession, targets: List<Target>) {
+    /** Delete targets right now: run the remove command where configured, then forget them. */
+    @JvmStatic
+    fun delete(plugin: EasySetupPlugin, p: Player, s: SetupSession, targets: List<Target>) {
         if (s.busy) {
             Msg.err(p, "Another placement is still running - wait a moment.")
             return

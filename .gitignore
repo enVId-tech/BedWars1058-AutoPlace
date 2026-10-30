@@ -3,5 +3,7 @@ build/
 .idea/
 *.iml
 out/
+.kotlin
+.gradle
 gradlew
 gradlew.bat

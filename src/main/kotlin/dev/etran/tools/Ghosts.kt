@@ -3,6 +3,7 @@ package dev.etran.tools
 import dev.etran.EasySetupPlugin
 import dev.etran.model.Element
 import dev.etran.model.SetupSession
+import dev.etran.gui.Items
 import dev.etran.model.TeamColor
 import org.bukkit.Bukkit
 import org.bukkit.ChatColor
@@ -11,6 +12,7 @@ import org.bukkit.Location
 import org.bukkit.World
 import org.bukkit.entity.Entity
 import org.bukkit.entity.EntityType
+import org.bukkit.entity.LivingEntity
 import org.bukkit.entity.Player
 import org.bukkit.entity.Villager
 import org.bukkit.potion.PotionEffect
@@ -19,7 +21,7 @@ import org.bukkit.scheduler.BukkitTask
 import java.util.UUID
 
 /**
- * Ghost villagers: real entities that mark where shops and upgrades are (looking the way they face) while a
+ * Setup markers ("ghosts"): real entities that show every placed element - villagers for shops and upgrades (looking the way they face), labelled armor stands for the rest while a
  * player is in setup mode. They are removed when the player leaves or exits, when a world is about to save, when
  * their chunk unloads and on disable, and any left behind are swept up on chunk load, so none reaches a real round.
  */
@@ -46,16 +48,22 @@ class Ghosts(private val plugin: EasySetupPlugin) {
 
     // ------------------------------------------------------------------------------------------
 
-    /** Rebuild the owner's ghosts from the positions recorded in the session. */
+    /**
+     * Rebuild the owner's markers from everything recorded in the session: villagers for shops and upgrades, a
+     * visible armor stand (with the element's icon on its head and a label) for everything else. They are the
+     * hitboxes to punch when deleting.
+     */
     fun refresh(p: Player, s: SetupSession) {
         removeOwner(p.uniqueId)
         if (!plugin.settings().ghostsEnabled() || !s.toolsActive) return
         for ((color, ts) in s.teams) {
-            for (e in arrayOf(Element.SHOP, Element.UPGRADE)) {
-                val l = ts.pos[e]
-                if (l != null && l.world != null) spawn(p.uniqueId, e, color, l)
+            for ((e, l) in ts.pos) if (l.world != null) spawn(p.uniqueId, e, color, l)
+            for (g in ts.gens) {
+                val e = if (g.type == "iron") Element.GEN_IRON else Element.GEN_GOLD
+                if (g.loc.world != null) spawn(p.uniqueId, e, color, g.loc)
             }
         }
+        for ((e, list) in s.mapElements) for (l in list) if (l.world != null) spawn(p.uniqueId, e, null, l)
     }
 
     private fun spawn(owner: UUID, e: Element, team: TeamColor?, l: Location) {
@@ -64,33 +72,63 @@ class Ghosts(private val plugin: EasySetupPlugin) {
         materialise(en)
     }
 
+    private fun label(en: Entry): String =
+        (en.team?.chat ?: ChatColor.YELLOW).toString() + ChatColor.BOLD + (if (en.team == null) "" else en.team.display + " ") +
+            en.element.label + ChatColor.GRAY + " (punch to delete)"
+
+    /** The block shown on a marker's head. */
+    private fun icon(en: Entry): String = when (en.element) {
+        Element.SPAWN -> en.team?.woolSpec() ?: "WHITE_WOOL|WOOL:0"
+        Element.BED -> en.team?.bedSpec() ?: "RED_BED|BED"
+        Element.KILL_DROPS -> "DROPPER"
+        Element.GEN_IRON -> "IRON_BLOCK"
+        Element.GEN_GOLD -> "GOLD_BLOCK"
+        Element.GEN_DIAMOND -> "DIAMOND_BLOCK"
+        Element.GEN_EMERALD -> "EMERALD_BLOCK"
+        Element.WAITING_SPAWN -> "BEACON"
+        Element.SPECTATOR_SPAWN -> "GLASS"
+        Element.LOBBY_POS1, Element.LOBBY_POS2 -> "OAK_PLANKS|WOOD"
+        else -> "PAPER"
+    }
+
     private fun materialise(en: Entry) {
         val l = en.anchor
         val w = l.world
         if (w == null || !w.isChunkLoaded(l.blockX shr 4, l.blockZ shr 4)) return
         try {
-            val v = w.spawnEntity(l, EntityType.VILLAGER) as Villager
-            val label = if (en.element == Element.SHOP) "Shop" else "Upgrades"
-            v.customName = TAG + (en.team?.chat ?: ChatColor.WHITE) + label + ChatColor.GRAY + " (ghost)"
-            v.isCustomNameVisible = true
-            v.removeWhenFarAway = false
-            try {
-                v.profession = if (en.element == Element.SHOP) Villager.Profession.FARMER else Villager.Profession.LIBRARIAN
-            } catch (ignored: Throwable) {
-                // profession is cosmetic
+            val villager = en.element == Element.SHOP || en.element == Element.UPGRADE
+            val ent: LivingEntity = if (villager) {
+                val v = w.spawnEntity(l, EntityType.VILLAGER) as Villager
+                try {
+                    v.profession = if (en.element == Element.SHOP) Villager.Profession.FARMER else Villager.Profession.LIBRARIAN
+                } catch (ignored: Throwable) {
+                    // profession is cosmetic
+                }
+                v
+            } else {
+                val st = w.spawnEntity(l, EntityType.valueOf("ARMOR_STAND")) as LivingEntity
+                call(st, "setVisible", arrayOf(java.lang.Boolean.TYPE), true)
+                call(st, "setGravity", arrayOf(java.lang.Boolean.TYPE), false)
+                call(st, "setBasePlate", arrayOf(java.lang.Boolean.TYPE), false)
+                call(st, "setArms", arrayOf(java.lang.Boolean.TYPE), false)
+                st.equipment?.helmet = Items.create(icon(en))
+                st
             }
-            val ai = call(v, "setAI", arrayOf(java.lang.Boolean.TYPE), false)
-            call(v, "setSilent", arrayOf(java.lang.Boolean.TYPE), true)
-            call(v, "setInvulnerable", arrayOf(java.lang.Boolean.TYPE), true)
-            call(v, "setCollidable", arrayOf(java.lang.Boolean.TYPE), false)
-            call(v, "setPersistent", arrayOf(java.lang.Boolean.TYPE), false)
-            if (!ai) immobilise(v) // 1.8: no AI switch
-            v.teleport(l)
-            call(v, "setRotation", arrayOf(java.lang.Float.TYPE, java.lang.Float.TYPE), l.yaw, l.pitch)
-            en.entity = v
-            byEntity[v.uniqueId] = en
+            ent.customName = TAG + label(en)
+            ent.isCustomNameVisible = true
+            ent.removeWhenFarAway = false
+            val ai = call(ent, "setAI", arrayOf(java.lang.Boolean.TYPE), false)
+            call(ent, "setSilent", arrayOf(java.lang.Boolean.TYPE), true)
+            call(ent, "setInvulnerable", arrayOf(java.lang.Boolean.TYPE), true)
+            call(ent, "setCollidable", arrayOf(java.lang.Boolean.TYPE), false)
+            call(ent, "setPersistent", arrayOf(java.lang.Boolean.TYPE), false)
+            if (villager && !ai) immobilise(ent as Villager) // 1.8: no AI switch
+            ent.teleport(l)
+            call(ent, "setRotation", arrayOf(java.lang.Float.TYPE, java.lang.Float.TYPE), l.yaw, l.pitch)
+            en.entity = ent
+            byEntity[ent.uniqueId] = en
         } catch (t: Throwable) {
-            plugin.logger.warning("Could not spawn a ghost villager: $t")
+            plugin.logger.warning("Could not spawn a setup marker: $t")
         }
     }
 
@@ -152,11 +190,7 @@ class Ghosts(private val plugin: EasySetupPlugin) {
     /** The recorded element behind a ghost entity, or null. */
     internal fun entryOf(e: Entity?): Entry? = if (e == null) null else byEntity[e.uniqueId]
 
-    private fun tagged(e: Entity): Boolean {
-        if (e !is Villager) return false
-        val n = e.customName
-        return n != null && n.startsWith(TAG)
-    }
+    private fun tagged(e: Entity): Boolean = isTagged(e)
 
     // ---- leftovers ---------------------------------------------------------------------------
 
@@ -199,5 +233,13 @@ class Ghosts(private val plugin: EasySetupPlugin) {
     companion object {
         /** Invisible prefix on every ghost's name; how leftovers are recognised. */
         internal const val TAG = "§r§b§w§a§g"
+
+        /** True for any marker entity this plugin spawned (recognised by its hidden name prefix). */
+        @JvmStatic
+        fun isTagged(e: Entity): Boolean {
+            if (e !is LivingEntity) return false
+            val n = e.customName
+            return n != null && n.startsWith(TAG)
+        }
     }
 }

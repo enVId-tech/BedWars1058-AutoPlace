@@ -7,6 +7,9 @@ import dev.etran.model.Facing
 import dev.etran.model.GameModeType
 import dev.etran.model.SetupMode
 import dev.etran.model.SetupSession
+import dev.etran.model.Element
+import dev.etran.model.TeamColor
+import dev.etran.tools.Remover
 import dev.etran.place.FacingPolicy
 import dev.etran.place.TeamManager
 import dev.etran.place.Validator
@@ -18,7 +21,7 @@ import org.bukkit.command.TabExecutor
 import org.bukkit.entity.Player
 import java.util.Locale
 
-/** /bwsetup [open|exit|tools|page|mode|gamemode|facing|snap|pitch|import|status|reset] */
+/** /bwsetup [open|exit|tools|page|mode|gamemode|facing|snap|pitch|import|delete|list|status|reset] */
 class SetupCommand(private val plugin: EasySetupPlugin) : TabExecutor {
     override fun onCommand(sender: CommandSender, command: Command, label: String, args: Array<String>): Boolean {
         if (sender !is Player) {
@@ -50,12 +53,24 @@ class SetupCommand(private val plugin: EasySetupPlugin) : TabExecutor {
             }
             "page" -> {
                 val which = if (args.size > 1) args[1].lowercase(Locale.ROOT) else ""
-                if (which != "team" && which != "map") {
-                    Msg.err(p, "Usage: /$label page <team|map>")
+                val idx = when (which) {
+                    "1", "base", "team" -> 0
+                    "2", "extras", "extra" -> 1
+                    "3", "map" -> 2
+                    else -> -1
+                }
+                if (idx < 0) {
+                    Msg.err(p, "Usage: /$label page <1|2|3|base|extras|map>")
                     return true
                 }
                 Hotbar.enter(plugin, p, s)
-                Hotbar.setPage(plugin, p, s, if (which == "map") 1 else 0)
+                Hotbar.setPage(plugin, p, s, idx)
+            }
+            "delete", "remove" -> delete(p, s, label, args)
+            "list" -> {
+                val all = Remover.all(s)
+                if (all.isEmpty()) Msg.info(p, "Nothing has been placed yet.")
+                else for (t in all) Msg.plain(p, " - " + t.name() + " at " + t.loc.blockX + ", " + t.loc.blockY + ", " + t.loc.blockZ)
             }
             "facing" -> facing(p, s, label, args)
             "snap" -> {
@@ -124,9 +139,51 @@ class SetupCommand(private val plugin: EasySetupPlugin) : TabExecutor {
                 Hotbar.render(plugin, p, s)
                 Msg.ok(p, "Setup state cleared (this does not delete anything inside Bedwars1058).")
             }
-            else -> Msg.err(p, "Usage: /$label [open|exit|tools|page|mode|gamemode|facing|snap|pitch|import|status|reset]")
+            else -> Msg.err(p, "Usage: /$label [open|exit|tools|page|mode|gamemode|facing|snap|pitch|import|delete|list|status|reset]")
         }
         return true
+    }
+
+    private fun delete(p: Player, s: SetupSession, label: String, args: Array<String>) {
+        val what = if (args.size > 1) args[1].lowercase(Locale.ROOT) else ""
+        val usage = "Usage: /$label delete <element> [team|all]   |   /$label delete team <team>   |   /$label delete all confirm   |   /$label list"
+        when {
+            what == "all" -> {
+                if (args.size < 3 || !args[2].equals("confirm", ignoreCase = true)) {
+                    Msg.err(p, "This deletes everything you placed (${Remover.all(s).size} elements). Run /$label delete all confirm to proceed.")
+                    return
+                }
+                val t = Remover.all(s)
+                if (t.isEmpty()) Msg.info(p, "Nothing has been placed yet.") else Remover.delete(plugin, p, s, t)
+            }
+            what == "team" -> {
+                val c = if (args.size > 2) TeamColor.fromName(args[2]) else s.selected
+                if (c == null) {
+                    Msg.err(p, usage)
+                    return
+                }
+                val t = Remover.all(s).filter { it.team == c }
+                if (t.isEmpty()) Msg.info(p, "${c.display} has nothing placed.") else Remover.delete(plugin, p, s, t)
+            }
+            else -> {
+                val e = ELEMENT_NAMES[what]
+                if (e == null) {
+                    Msg.err(p, usage)
+                    Msg.plain(p, " elements: " + ELEMENT_NAMES.keys.joinToString(", "))
+                    return
+                }
+                val arg = if (args.size > 2) args[2] else null
+                val every = arg.equals("all", ignoreCase = true)
+                val team = if (e.perTeam) (if (arg != null && !every) TeamColor.fromName(arg) else s.selected) else null
+                if (e.perTeam && team == null) {
+                    Msg.err(p, "Which team? /$label delete $what <team>")
+                    return
+                }
+                val t = Remover.select(s, e, team, p.location, every)
+                if (t.isEmpty()) Msg.info(p, "No " + (if (team == null) "" else team.display + " ") + e.label + " has been placed.")
+                else Remover.delete(plugin, p, s, t)
+            }
+        }
     }
 
     private fun facing(p: Player, s: SetupSession, label: String, args: Array<String>) {
@@ -161,16 +218,35 @@ class SetupCommand(private val plugin: EasySetupPlugin) : TabExecutor {
     override fun onTabComplete(sender: CommandSender, command: Command, alias: String, args: Array<String>): List<String> {
         fun opts(list: List<String>, typed: String) = list.filter { it.startsWith(typed.lowercase(Locale.ROOT)) }
         if (args.size == 1) {
-            return opts(listOf("open", "exit", "tools", "page", "mode", "gamemode", "facing", "snap", "pitch", "import", "status", "reset"), args[0])
+            return opts(listOf("open", "exit", "tools", "page", "mode", "gamemode", "facing", "snap", "pitch", "import", "delete", "list", "status", "reset"), args[0])
+        }
+        if (args.size == 3 && args[0].lowercase(Locale.ROOT) in listOf("delete", "remove")) {
+            val team = TeamColor.entries.map { it.display.lowercase(Locale.ROOT) }
+            return when (args[1].lowercase(Locale.ROOT)) {
+                "team" -> opts(team, args[2])
+                "all" -> opts(listOf("confirm"), args[2])
+                else -> opts(team + "all", args[2])
+            }
         }
         if (args.size != 2) return emptyList()
         return when (args[0].lowercase(Locale.ROOT)) {
+            "delete", "remove" -> opts(ELEMENT_NAMES.keys.toList() + listOf("team", "all"), args[1])
             "mode" -> opts(listOf("manual", "semi", "auto"), args[1])
-            "page" -> opts(listOf("team", "map"), args[1])
+            "page" -> opts(listOf("base", "extras", "map"), args[1])
             "facing" -> opts(listOf("toward", "same", "reset"), args[1])
             "snap" -> opts(listOf("45", "22.5", "15", "90", "off", "reset"), args[1])
             "gamemode" -> opts(GameModeType.entries.map { it.label }, args[1])
             else -> emptyList()
         }
+    }
+
+    private companion object {
+        val ELEMENT_NAMES: Map<String, Element> = linkedMapOf(
+            "spawn" to Element.SPAWN, "bed" to Element.BED, "shop" to Element.SHOP, "upgrade" to Element.UPGRADE,
+            "iron" to Element.GEN_IRON, "gold" to Element.GEN_GOLD, "drops" to Element.KILL_DROPS,
+            "waitspawn" to Element.WAITING_SPAWN, "specspawn" to Element.SPECTATOR_SPAWN,
+            "lobby1" to Element.LOBBY_POS1, "lobby2" to Element.LOBBY_POS2,
+            "diamond" to Element.GEN_DIAMOND, "emerald" to Element.GEN_EMERALD
+        )
     }
 }

@@ -19,6 +19,9 @@ class Settings(private val plugin: EasySetupPlugin) {
         return out
     }
 
+    /** Start hotbar setup automatically when the player runs `/bw setupArena <world>`. */
+    fun autoStart(): Boolean = c().getBoolean("auto-start-on-setup-arena", true)
+
     fun stepDelay(): Int = maxOf(1, c().getInt("timing.step-delay-ticks", 2))
 
     fun countdownSeconds(): Int = maxOf(1, c().getInt("timing.countdown-seconds", 3))

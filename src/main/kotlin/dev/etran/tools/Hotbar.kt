@@ -61,8 +61,8 @@ object Hotbar {
         plugin.ghosts().refresh(p, s)
         Msg.ok(
             p,
-            "Setup tools are on your hotbar. Right-click a block to place, left-click an element to delete. " +
-                "The nether star opens the menu; /bwsetup exit gives your items back."
+            "Setup tools are on your hotbar. Red/green concrete (first/last slot) switch pages. Right-click a block to " +
+                "place, left-click an element to delete. /bwsetup exit gives your items back."
         )
     }
 
@@ -85,22 +85,22 @@ object Hotbar {
     @JvmStatic
     fun render(plugin: EasySetupPlugin, p: Player, s: SetupSession) {
         if (!s.toolsActive) return
-        val page = if (s.hotbarPage == 1) Tool.MAP_PAGE else Tool.TEAM_PAGE
+        val page = Tool.PAGES[s.hotbarPage.coerceIn(0, Tool.PAGES.size - 1)]
         val inv = p.inventory
-        for (i in 0 until 9) inv.setItem(i, page[i]?.item(s))
+        for (i in 0 until 9) inv.setItem(i, page[i]?.item(s, plugin))
         p.updateInventory()
     }
 
+    /** Switch to a hotbar page (wraps around), like loading another creative hotbar. */
     @JvmStatic
     fun setPage(plugin: EasySetupPlugin, p: Player, s: SetupSession, page: Int) {
-        s.hotbarPage = if (page == 1) 1 else 0
+        val n = Tool.PAGES.size
+        s.hotbarPage = ((page % n) + n) % n
         render(plugin, p, s)
-        Msg.info(
-            p,
-            if (s.hotbarPage == 1) "Map tools: spawns, lobby corners, diamond and emerald generators."
-            else "Team tools: spawn, bed, shop, upgrade, generators, drop area."
-        )
+        p.sendActionBarOrChat("Page " + (s.hotbarPage + 1) + "/" + n + ": " + Tool.PAGE_NAMES[s.hotbarPage])
     }
+
+    private fun Player.sendActionBarOrChat(text: String) = Msg.info(this, text)
 
     @JvmStatic
     fun stripTools(p: Player) {

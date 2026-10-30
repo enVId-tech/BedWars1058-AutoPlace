@@ -32,22 +32,44 @@ internal object FacingControl {
         )
     }
 
+    /** Lore lines describing the current facing settings (shared by the menu button and the hotbar tool). */
+    fun lines(plugin: EasySetupPlugin, s: SetupSession): List<String> {
+        val m = FacingPolicy.mode(plugin.settings(), s)
+        val step = FacingPolicy.step(plugin.settings(), s)
+        val mode = when (m) {
+            Facing.Mode.TOWARD_PLAYER -> "looks back toward you"
+            Facing.Mode.SAME_AS_PLAYER -> "same way you face"
+            Facing.Mode.FIXED -> "fixed " + FacingPolicy.fixedYaw(plugin.settings(), s).toInt() + "°"
+        }
+        return listOf(
+            "&7Direction: &f$mode",
+            "&7Snap: &f" + (if (step <= 0) "off" else trim(step) + "°") + "&7   Pitch: &f" + trim(FacingPolicy.pitch(plugin.settings(), s)) + "°",
+            "&7Right-click: change direction",
+            "&7Left-click: change snap",
+            "&7Shift-click: back to config values"
+        )
+    }
+
+    fun cycleMode(s: SetupSession) {
+        val cur = s.facingMode ?: Facing.Mode.TOWARD_PLAYER
+        s.facingMode = Facing.Mode.entries[(cur.ordinal + 1) % Facing.Mode.entries.size]
+    }
+
+    fun cycleSnap(s: SetupSession) {
+        val cur = s.snapOverride ?: 45.0
+        var idx = 0
+        for (i in STEPS.indices) if (Math.abs(STEPS[i] - cur) < 1e-9) idx = i
+        s.snapOverride = STEPS[(idx + 1) % STEPS.size]
+    }
+
+    fun reset(s: SetupSession) {
+        s.facingMode = null
+        s.snapOverride = null
+        s.pitchOverride = null
+    }
+
     fun click(s: SetupSession, e: InventoryClickEvent) {
-        if (e.isShiftClick) {
-            s.facingMode = null
-            s.snapOverride = null
-            s.pitchOverride = null
-            return
-        }
-        if (e.isRightClick) {
-            val cur = s.snapOverride ?: 45.0
-            var idx = 0
-            for (i in STEPS.indices) if (Math.abs(STEPS[i] - cur) < 1e-9) idx = i
-            s.snapOverride = STEPS[(idx + 1) % STEPS.size]
-        } else {
-            val cur = s.facingMode ?: Facing.Mode.TOWARD_PLAYER
-            s.facingMode = Facing.Mode.entries[(cur.ordinal + 1) % Facing.Mode.entries.size]
-        }
+        if (e.isShiftClick) reset(s) else if (e.isRightClick) cycleSnap(s) else cycleMode(s)
     }
 
     private fun trim(d: Double): String =

@@ -11,6 +11,10 @@ import org.bukkit.event.EventPriority
 import org.bukkit.event.Listener
 import org.bukkit.event.player.PlayerCommandPreprocessEvent
 import org.bukkit.event.player.PlayerQuitEvent
+import org.bukkit.scheduler.BukkitRunnable
+import dev.etran.Msg
+import dev.etran.gui.MainMenu
+import dev.etran.tools.Hotbar
 import java.util.Locale
 
 /**
@@ -21,11 +25,15 @@ class CommandSniffer(private val plugin: EasySetupPlugin) : Listener {
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     fun onCommand(ev: PlayerCommandPreprocessEvent) {
         val p = ev.player
-        val s = plugin.sessions().peek(p) ?: return
         var msg = ev.message.trim()
         if (msg.startsWith("/")) msg = msg.substring(1)
         val a = msg.split(Regex("\\s+"))
         if (a.size < 2 || !plugin.settings().commandRoots().contains(a[0].lowercase(Locale.ROOT))) return
+        if (a[1].equals("setuparena", ignoreCase = true) && plugin.settings().autoStart() && p.hasPermission("bwauto.use")) {
+            startWhenInArena(p, if (a.size > 2) a[2] else null)
+            return
+        }
+        val s = plugin.sessions().peek(p) ?: return
         when (a[1].lowercase(Locale.ROOT)) {
             "createteam" -> {
                 val c = if (a.size > 2) TeamColor.fromName(a[2]) else null
@@ -60,6 +68,34 @@ class CommandSniffer(private val plugin: EasySetupPlugin) : Listener {
         if (s.toolsActive) {
             Bukkit.getScheduler().runTask(plugin, Runnable { plugin.ghosts().refresh(p, s) })
         }
+    }
+
+    /**
+     * `/bw setupArena <world>` teleports the player into the arena world a moment later. Wait for that, then start
+     * a fresh session: tools on the hotbar, existing elements imported, main menu open.
+     */
+    private fun startWhenInArena(p: Player, world: String?) {
+        var waited = 0
+        object : BukkitRunnable() {
+            override fun run() {
+                waited += 5
+                if (!p.isOnline) {
+                    cancel()
+                    return
+                }
+                val inArena = world == null || p.world.name.equals(world, ignoreCase = true)
+                if (!inArena && waited < 120) return
+                cancel()
+                if (!inArena) return // the setup never started (wrong name, no permission...)
+                val old = plugin.sessions().peek(p)
+                if (old != null) Hotbar.deactivate(plugin, p, old)
+                plugin.sessions().remove(p.uniqueId)
+                val fresh = plugin.sessions().get(p)
+                Hotbar.enter(plugin, p, fresh)
+                MainMenu(plugin, p).open()
+                Msg.info(p, "Setup started for " + p.world.name + ". Pick a gamemode, then use the hotbar. /bwsetup reopens the menu.")
+            }
+        }.runTaskTimer(plugin, 10L, 5L)
     }
 
     private fun teamElement(p: Player, s: SetupSession, a: List<String>, teamArg: Int, e: Element) {

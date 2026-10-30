@@ -150,6 +150,7 @@ object AutoRunner {
         q.teleport(start)
         q.done {
             s.busy = false
+            if (s.toolsActive) plugin.ghosts().refresh(p, s)
             Msg.ok(
                 p,
                 "Automatic placement finished. Bases: " +
@@ -199,6 +200,7 @@ object AutoRunner {
         q.teleport(start)
         q.done {
             s.busy = false
+            if (s.toolsActive) plugin.ghosts().refresh(p, s)
             Msg.ok(p, "Placed team ${placed.display}" + (if (mirror) " (mirrored)" else "") + ".")
             val left = BedScanner.unassigned(s, st, w, centre(st, w, start)).filter { it.key() != target.key() }
             if (left.isEmpty()) {
