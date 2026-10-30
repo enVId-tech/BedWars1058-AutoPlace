@@ -17,12 +17,44 @@ bw-commands:
   add-generator: "{root} addGenerator {type} {team}"
   add-map-generator: "{root} addGenerator {type}"
   remove-generator: "{root} removeGenerator"
+  # Run when you delete an element by hitting it. Bedwars1058 may not have a command for these; an empty
+  # template means the element is only forgotten here and its old value is overwritten when you place it again.
+  remove-spawn: ""
+  remove-bed: ""
+  remove-shop: ""
+  remove-upgrade: ""
+  remove-kill-drops: ""
+  remove-waiting-spawn: ""
+  remove-spectator-spawn: ""
+  remove-waiting-pos1: ""
+  remove-waiting-pos2: ""
   set-kill-drops: "{root} setKillDrops {team}"
   set-waiting-spawn: "{root} setWaitingSpawn"
   set-spectator-spawn: "{root} setSpectatorSpawn"
   waiting-pos1: "{root} waitingPos1"
   waiting-pos2: "{root} waitingPos2"
   save: "{root} save"
+
+# Hotbar setup: how shops and upgrades are turned when you place them (also /bwsetup facing|snap|pitch).
+facing:
+  shop-mode: toward-player     # toward-player (opposite of where you face) | same | fixed
+  shop-fixed-yaw: 0            # used when shop-mode is fixed (0 south, 90 west, 180 north, 270 east)
+  shop-snap-degrees: 45        # round the yaw to this step; 0 = exact
+  shop-pitch: 0                # shops and upgrades are locked to this pitch
+  spawn-snap-degrees: 45       # team spawns face the way you face, rounded to this step; 0 = exact
+
+# Elements that already exist (plugins/BedWars1058/<folder>/<world>.yml) are loaded when setup mode starts.
+existing-arena:
+  import-on-start: true
+  folder: Arenas
+
+# Ghost villagers drawn at shops/upgrades while you are in setup mode. Removed on quit, on world save, on
+# chunk unload and when setup mode ends.
+ghosts:
+  enabled: true
+
+delete:
+  confirm-seconds: 5           # hit non-physical elements (spawn, bed...) twice within this time to delete them
 
 # Root labels the command sniffer recognises when a player types setup commands by hand.
 command-roots: [bw, bedwars, bw1058]
@@ -44,6 +76,7 @@ beds:
   scan-radius: 200             # how far from the centre to look for beds
   armor-stand-radius: 7        # a bed with an armor stand this close is treated as already assigned
   assigned-radius: 10          # a bed this close to an assigned bed is treated as already assigned
+  scan-y-range: 80             # vertical half-range of the map-wide bed scan (keeps it fast on every version)
 
 lobby-scan:
   radius: 48                   # square radius around the centre that is scanned
@@ -54,7 +87,7 @@ lobby-scan:
 wool:
   radius: 24
   min-score: 6                 # minimum (own count - mean count at other bases) to accept a colour
-  suffixes: ["_WOOL"]          # block families that count as team-coloured structure
+  families: [WOOL]             # coloured block families that count: WOOL, CONCRETE, TERRACOTTA, GLASS, CARPET
 
 mirror:
   mode: auto                   # auto | off | force
@@ -63,6 +96,9 @@ mirror:
 
 generator-scan:
   radius: 100
+  y-range: 48                  # vertical half-range around you that is searched
+  min-probability: 0.6         # a diamond/emerald block is placed as a generator at or above this probability
+                               # (use /bwauto gens to see every candidate's probability and why)
 
 rotation:
   default-degrees: 90

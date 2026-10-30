@@ -1,20 +1,21 @@
-name: BedwarsAutoSetup
+name: BedWars1058-EasySetup
 version: ${version}
-main: dev.etran.BwAutoPlugin
-api-version: '1.17'
+main: dev.etran.EasySetupPlugin
+# api-version 1.13 stops 1.13+ servers treating this as a legacy plugin; servers before 1.13 ignore the key.
+api-version: '1.13'
 description: Manual, semi-automatic and fully automatic Bedwars1058 arena setup.
 authors: [thelittlebotengineer]
 depend: [BedWars1058]
 
 commands:
   bwsetup:
-    description: Open the Bedwars auto-setup menu.
-    usage: /bwsetup [open|mode <manual|semi|auto>|gamemode <1v1v1v1|...>|status|reset]
+    description: Start hotbar setup mode and open the setup menu.
+    usage: /bwsetup [open|exit|tools|page <team|map>|mode|gamemode|facing|snap|pitch|import|status|reset]
     aliases: [bwa, bwautosetup]
     permission: bwauto.use
   bwauto:
     description: Run automatic placement, or confirm/deny it when elements are missing.
-    usage: /bwauto [run|next|confirm|deny]
+    usage: /bwauto [run|next|confirm|deny|gens]
     permission: bwauto.use
   nextgen:
     description: Detect and place the next diamond/emerald generator, or rotate around the map centre.
