@@ -4,12 +4,6 @@ A Spigot plugin that drives **Bedwars1058** arena setup in three modes, replacin
 `middlesetup.sk`. It uses Bedwars1058 as a dependency and runs its setup commands for you; it is not
 based on BW1058-SetupArena.
 
-> **Build status:** the code was compiled against hand-written API stubs and the position maths was
-> unit-tested, but it has **not** been compiled against the real Spigot API or run on a server (the
-> authoring environment could not reach any Maven repository). Run `./gradlew build` first and fix anything
-> the real API disagrees with. The 1.8 / 1.12 / 1.16 / 1.20 / latest paths below are written to be correct
-> but are untested on real servers. See "Things to verify".
-
 ## Build and install
 
 ```
