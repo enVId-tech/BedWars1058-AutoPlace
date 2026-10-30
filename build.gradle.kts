@@ -1,7 +1,7 @@
 plugins {
     java
     // The plugin is written in Kotlin (src/main/kotlin). Kotlin 2.0.x targets JVM 8 bytecode.
-    kotlin("jvm") version "2.0.21"
+    kotlin("jvm") version "2.2.21"
 }
 
 group = "dev.etran"
